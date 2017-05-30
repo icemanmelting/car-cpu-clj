@@ -1,4 +1,7 @@
 (ns car-cpu-clj.core
+  (:require [car-data-clj.core :refer [insert-request]]
+            [clojure.core.async :as a :refer [<! >!!]]
+            [car-data-clj.db :as db])
   (import (java.net DatagramSocket
                     DatagramPacket
                     InetSocketAddress)))
@@ -37,8 +40,11 @@
             (f (receive-packet socket))
             (recur))))
 
-(defn print-this-shit [msg] (println "message: " msg))
-
+(defn print-this-shit [msg]
+  (prn msg)
+  (insert-request {:op_type "car_trip_new"
+                   :id (db/uuid)
+                   :starting_km 0}))
 
 (defn -main []
   (receive-loop (make-socket 9999) print-this-shit))
