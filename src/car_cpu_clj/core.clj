@@ -40,11 +40,8 @@
             (f (receive-packet socket))
             (recur))))
 
-(defn print-this-shit [msg]
-  (prn msg)
-  (make-request {:op_type "car_trip_new"
-                   :id (db/uuid)
-                   :starting_km 0}))
+(defn interpret-command [msg]
+  )
 
 (defn -main []
-  (receive-loop (make-socket 9999) print-this-shit))
+  (receive-loop (make-socket 9999) interpret-command))
