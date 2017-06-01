@@ -29,16 +29,16 @@
         packet (DatagramPacket. buffer 512)]
     (.receive socket packet)
     (String. (.getData packet)
-             0 (.getLength packet))))
+             0 (.getLength packet)))
 
-(defn receive-loop
-  "Given a function and DatagramSocket, will (in another thread) wait
-  for the socket to receive a message, and whenever it does, will call
-  the provided function on the incoming message."
-  [socket f]
-  (future (loop []
-            (f (receive-packet socket))
-            (recur))))
+  (defn receive-loop
+    "Given a function and DatagramSocket, will (in another thread) wait
+    for the socket to receive a message, and whenever it does, will call
+    the provided function on the incoming message."
+    [socket f]
+    (future (loop []
+              (f (receive-packet socket))
+              (recur)))))
 
 (defn interpret-command [msg]
   )

@@ -5,7 +5,8 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/core.async "0.3.442"]
-                 [car-data-clj "1.0.0-RC"]]
+                 [car-data-clj "1.0.0-RC"]
+                 [pt.iceman/carscreentools "0.0.1"]]
   :main car-cpu-clj.core
   :target-path "target/%s"
   :uberjar-name "car-cpu-standalone.jar"
