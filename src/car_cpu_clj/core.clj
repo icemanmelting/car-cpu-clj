@@ -1,10 +1,32 @@
 (ns car-cpu-clj.core
   (:require [car-data-clj.core :refer [make-request]]
-            [clojure.core.async :as a :refer [<! >!!]]
+            [clojure.core.async :as a :refer [<! chan go-loop >!! go >!]]
             [car-data-clj.db :as db])
   (import (java.net DatagramSocket
                     DatagramPacket
-                    InetSocketAddress)))
+                    InetSocketAddress)
+          (javaclasses Dashboard)))
+
+(def abs-anomaly-off 128)
+(def abs-anomaly-on 143)
+(def battery-off 32)
+(def battery-off 47)
+(def brakes-oil-off 64)
+(def brakes-oil-on 79)
+(def hig-beam-off 144)
+(def high-beam-on 159)
+(def oild-pressure-off 16)
+(def oild-pressure-on 31)
+(def parking-brake-off 48)
+(def parking-brake-on 63)
+(def reset-trip-km 255)
+(def rpm-pulse 180)
+(def spark-plugs-off 112)
+(def spark-plugs-on 127)
+(def speed-pulse 176)
+(def temperature-value 192)
+(def turning-signs-off 80)
+(def turning-signs-on 95)
 
 (defn make-socket
   ([] (new DatagramSocket))
@@ -25,23 +47,38 @@
   "Block until a UDP message is received on the given DatagramSocket, and
   return the payload message as a string."
   [^DatagramSocket socket]
-  (let [buffer (byte-array 512)
-        packet (DatagramPacket. buffer 512)]
+  (let [buffer (byte-array 10)
+        packet (DatagramPacket. buffer 10)]
     (.receive socket packet)
-    (String. (.getData packet)
-             0 (.getLength packet)))
+    (.getData packet)))
 
-  (defn receive-loop
-    "Given a function and DatagramSocket, will (in another thread) wait
-    for the socket to receive a message, and whenever it does, will call
-    the provided function on the incoming message."
-    [socket f]
-    (future (loop []
-              (f (receive-packet socket))
-              (recur)))))
+(defn bytes-to-int
+  ([bytes]
+   (bit-or (bit-and (first bytes)
+                    0xFF)
+           (bit-and (bit-shift-left (second bytes) 8)
+                    0xFF00))))
 
-(defn interpret-command [msg]
-  )
+(defn- process-command [cmd-ar]
+  (let [ar (filter #(not (= % 0)) cmd-ar)
+        ar-size (count ar)]
+    (if (<= 1 ar-size)
+      {:command (first ar)}
+      {:command (first ar)
+       :value (bytes-to-int (rest ar))})))
 
-(defn -main []
-  (receive-loop (make-socket 9999) interpret-command))
+(defn- interpret-command [cmd-ar ^Dashboard dashboard]
+  (let [cmd (process-command cmd-ar)]
+    (prn cmd)))
+
+(defn receive-loop
+  "Given a function and DatagramSocket, will (in another thread) wait
+  for the socket to receive a message, and whenever it does, will call
+  the provided function on the incoming message."
+  [socket ^Dashboard dashboard]
+  (loop []
+    (future (interpret-command (byte-array (receive-packet socket)) dashboard)
+            (recur))))
+
+(defn init [^Dashboard dashboard]
+  (receive-loop (make-socket 9999) dashboard))
