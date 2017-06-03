@@ -6,10 +6,7 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/core.async "0.3.442"]
                  [car-data-clj "1.0.0-RC"]
-                 [eu.hansolo.enzo/Enzo "0.3.6"]]
-  :main car-cpu-clj.core
-  :java-source-paths ["src/screentools"]
-  :target-path "target/%s"
-  :uberjar-name "car-cpu-standalone.jar"
-  :profiles {:uberjar {:aot :all}})
+                 [pt.iceman/carscreentools "0.0.1"]]
+  :aot [car-cpu-clj.core]
+  :java-source-paths ["src/screentools"])
 
