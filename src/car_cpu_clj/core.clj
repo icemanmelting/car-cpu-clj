@@ -34,7 +34,9 @@
 (def rpm-pulse 180)
 (def speed-pulse 176)
 (def temperature-value 192)
+(def temperature-buffer-size 256)
 (def diesel-value 224)
+(def diesel-buffer-size 512)
 (def ignition-on 171)
 (def ignition-off 170)
 (def turn-off 168)
@@ -115,32 +117,39 @@
       (.setTotalDistance abs))
     [trip abs (conj speed)]))
 
-(defn- interpret-command [dashboard cmd-map trip-km abs-km temp-buffer]
+(defn avg [ar] (/ (reduce + ar) (count ar)))
+
+(defn- interpret-command [dashboard cmd-map trip-km abs-km diesel-buffer temp-buffer]
   (let [cmd (:command cmd-map)
         val (:value cmd-map)]
     (cond
-      (= abs-anomaly-off cmd) (do (.setAbs dashboard false) [trip-km abs-km temp-buffer])
-      (= abs-anomaly-on cmd) (do (.setAbs dashboard true) [trip-km abs-km temp-buffer])
-      (= battery-off cmd) (do (.setBattery dashboard false) [trip-km abs-km temp-buffer])
-      (= battery-on cmd) (do (.setBattery dashboard true) [trip-km abs-km temp-buffer])
-      (= brakes-oil-off cmd) (do (.setBrakesOil dashboard false) [trip-km abs-km temp-buffer])
-      (= brakes-oil-on cmd) (do (.setBrakesOil dashboard true) [trip-km abs-km temp-buffer])
-      (= hig-beam-off cmd) (do (.setHighBeams dashboard false) [trip-km abs-km temp-buffer])
-      (= high-beam-on cmd) (do (.setHighBeams dashboard true) [trip-km abs-km temp-buffer])
-      (= oil-pressure-off cmd) (do (.setOilPressure dashboard false) [trip-km abs-km temp-buffer])
-      (= oil-pressure-on cmd) (do (.setOilPressure dashboard true) [trip-km abs-km temp-buffer])
-      (= parking-brake-off cmd) (do (.setParking dashboard false) [trip-km abs-km temp-buffer])
-      (= parking-brake-on cmd) (do (.setParking dashboard true) [trip-km abs-km temp-buffer])
-      (= turning-signs-off cmd) (do (.setTurnSigns dashboard false) [trip-km abs-km temp-buffer])
-      (= turning-signs-on cmd) (do (.setTurnSigns dashboard true) [trip-km abs-km temp-buffer])
-      (= spark-plugs-off cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km temp-buffer])
-      (= spark-plugs-on cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km temp-buffer])
-      (= reset-trip-km cmd) (do (.resetDistance dashboard) [0 abs-km temp-buffer])
+      (= abs-anomaly-off cmd) (do (.setAbs dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= abs-anomaly-on cmd) (do (.setAbs dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= battery-off cmd) (do (.setBattery dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= battery-on cmd) (do (.setBattery dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= brakes-oil-off cmd) (do (.setBrakesOil dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= brakes-oil-on cmd) (do (.setBrakesOil dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= hig-beam-off cmd) (do (.setHighBeams dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= high-beam-on cmd) (do (.setHighBeams dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= oil-pressure-off cmd) (do (.setOilPressure dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= oil-pressure-on cmd) (do (.setOilPressure dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= parking-brake-off cmd) (do (.setParking dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= parking-brake-on cmd) (do (.setParking dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= turning-signs-off cmd) (do (.setTurnSigns dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= turning-signs-on cmd) (do (.setTurnSigns dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
+      (= spark-plugs-off cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= spark-plugs-on cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= reset-trip-km cmd) (do (.resetDistance dashboard) [0 abs-km diesel-buffer temp-buffer])
       (= speed-pulse cmd) (let [[trip abs] (speed-distance-interpreter dashboard val trip-km abs-km)]
                             (.setSpeed dashboard val)
-                            [trip abs temp-buffer])
-      (= rpm-pulse cmd) (do (.setRpm dashboard (/ (* val 900) 155)) [trip-km abs-km temp-buffer])
-      (= temperature-value cmd) (do [trip-km abs-km temp-buffer])))) ;;<--- implement this
+                            [trip abs diesel-buffer temp-buffer])
+      (= rpm-pulse cmd) (do (.setRpm dashboard (/ (* val 900) 155)) [trip-km abs-km diesel-buffer temp-buffer])
+      (= diesel-value cmd) (do (if (= diesel-buffer-size (count diesel-buffer))
+                                 (do
+                                   (.setDiesel dashboard (avg diesel-buffer))
+                                   [trip-km abs-km diesel-buffer [] temp-buffer])
+                                 [trip-km abs-km (conj diesel-buffer val) diesel-buffer temp-buffer]))
+      (= temperature-value cmd) (do [trip-km abs-km diesel-buffer diesel-buffer temp-buffer])))) ;;<--- implement this
 
 (defn receive-loop
   "Given a function and DatagramSocket, will (in another thread) wait
@@ -163,14 +172,15 @@
       (receive-loop (make-socket 9999) dashboard)
       (go-loop [trip trip-km
                 absolute-km cnst-km
+                diesel-buffer []
                 temp-buffer []]
         (let [record (<!! cpu-channel)
-              [trip-km abs-km temp-buffer] (interpret-command dashboard
-                                                              record
-                                                              trip
-                                                              absolute-km
-
-                                                              temp-buffer)]
+              [trip-km abs-km d-buffer t-buffer] (interpret-command dashboard
+                                                                    record
+                                                                    trip
+                                                                    absolute-km
+                                                                    diesel-buffer
+                                                                    temp-buffer)]
           (prn)
-          (recur trip-km abs-km temp-buffer))))
+          (recur trip-km abs-km d-buffer t-buffer))))
     (prn "Could not get car settings, is there somethign wrong with the connection?")))
