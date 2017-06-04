@@ -34,6 +34,10 @@
 (def rpm-pulse 180)
 (def speed-pulse 176)
 (def temperature-value 192)
+(def diesel-value 224)
+(def ignition-on 171)
+(def ignition-off 170)
+(def turn-off 168)
 
 ;;IMPLEMENT THIS FOR TEMPERATURE CREATION
 ;protected static final float CAR_TERMISTOR_ALPHA_VALUE = -0.00001423854206f;
@@ -151,23 +155,22 @@
   "Method to be called from the JavaGUI to start listening for
   incoming communication from the car's MCU"
   [dashboard id]
-  ;(if-let [car-settings (data/read-settings id)]
-  ;  (let [trip-km (:trip_kilometers car-settings)
-  ;        cnst-km (:constant_kilometers car-settings)]
-  (receive-loop (make-socket 9999) dashboard)
-  (go-loop [trip 0
-            absolute-km 0
-            ;trip trip-km
-            ;absolute-km cnst-km
-            []
-            temp-buffer []]
-    (let [record (<!! cpu-channel)
-          [trip-km abs-km temp-buffer] (interpret-command dashboard
-                                                          record
-                                                          trip
-                                                          absolute-km
+  (if-let [car-settings (data/read-settings id)]
+    (let [trip-km (:trip_kilometers car-settings)
+          cnst-km (:constant_kilometers car-settings)]
+      (doto dashboard (.setDistance trip-km)
+                      (.setTotalDistance cnst-km))
+      (receive-loop (make-socket 9999) dashboard)
+      (go-loop [trip trip-km
+                absolute-km cnst-km
+                temp-buffer []]
+        (let [record (<!! cpu-channel)
+              [trip-km abs-km temp-buffer] (interpret-command dashboard
+                                                              record
+                                                              trip
+                                                              absolute-km
 
-                                                          temp-buffer)]
-      (prn)
-      (recur trip-km abs-km temp-buffer))))
-;))
+                                                              temp-buffer)]
+          (prn)
+          (recur trip-km abs-km temp-buffer))))
+    (prn "Could not get car settings, is there somethign wrong with the connection?")))
