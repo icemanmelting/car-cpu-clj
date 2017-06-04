@@ -15,25 +15,41 @@
           (java.util UUID)))
 
 (def abs-anomaly-off 128)
-(def abs-anomaly-on -113) ;143
+(def abs-anomaly-on 143)
 (def battery-off 32)
-(def battery-off 47)
+(def battery-on 47)
 (def brakes-oil-off 64)
 (def brakes-oil-on 79)
 (def hig-beam-off 144)
 (def high-beam-on 159)
-(def oild-pressure-off 16)
-(def oild-pressure-on 31)
+(def oil-pressure-off 16)
+(def oil-pressure-on 31)
 (def parking-brake-off 48)
 (def parking-brake-on 63)
-(def reset-trip-km 255)
-(def rpm-pulse 180)
-(def spark-plugs-off 112)
-(def spark-plugs-on 127)
-(def speed-pulse 176)
-(def temperature-value 192)
 (def turning-signs-off 80)
 (def turning-signs-on 95)
+(def spark-plugs-off 112)
+(def spark-plugs-on 127)
+(def reset-trip-km 255)
+(def rpm-pulse 180)
+(def speed-pulse 176)
+(def temperature-value 192)
+
+;;IMPLEMENT THIS FOR TEMPERATURE CREATION
+;protected static final float CAR_TERMISTOR_ALPHA_VALUE = -0.00001423854206f;
+;protected static final float CAR_TERMISTOR_BETA_VALUE = 0.0007620444171f;
+;protected static final float CAR_TERMISTOR_C_VALUE = -0.000006511973919f;
+;public static final byte TEMPERATURE_VALUE = (byte) 0b1100_0000;
+;public static final int TEMPERATURE_BUFFER_SIZE = 256;
+;static final int PULL_UP_RESISTOR_VALUE = 975;
+;static final double VOLTAGE_LEVEL = 12;
+;static final int PIN_RESOLUTION = 1023;
+;static final double STEP = (double) 15 / (double) PIN_RESOLUTION;
+;
+;double voltageLevel = analogLevel * STEP;
+;double resistance = (voltageLevel * PULL_UP_RESISTOR_VALUE) / (VOLTAGE_LEVEL - voltageLevel);
+;double temperature = 1 / (CAR_TERMISTOR_ALPHA_VALUE + CAR_TERMISTOR_BETA_VALUE * (Math.log(resistance)) + CAR_TERMISTOR_C_VALUE * Math.log(resistance) * Math.log(resistance) * Math.log(resistance)) - 273.15;
+
 
 (defn make-socket
   ([] (new DatagramSocket))
@@ -52,7 +68,7 @@
   truncated."
   [^DatagramSocket socket msg host port]
   (let [payload (.getBytes msg)
-        length (min (alength payload) 512)
+        length (min (alength payload) 3)
         address (InetSocketAddress. host port)
         packet (DatagramPacket. payload length address)]
     (.send socket packet)))
@@ -61,8 +77,8 @@
   "Block until a UDP message is received on the given DatagramSocket, and
   return the payload message as a string."
   [^DatagramSocket socket]
-  (let [buffer (byte-array 10)
-        packet (DatagramPacket. buffer 10)]
+  (let [buffer (byte-array 3)
+        packet (DatagramPacket. buffer 3)]
     (.receive socket packet)
     (.getData packet)))
 
@@ -73,22 +89,54 @@
            (bit-and (bit-shift-left (second bytes) 8)
                     0xFF00))))
 
-(defn- process-command [cmd-ar]
-  (let [ar (filter #(not (= % 0)) cmd-ar)
-        ar-size (count ar)]
-    (if (= 1 ar-size)
-      {:command (first ar)}
-      {:command (first ar)
-       :value (bytes-to-int (rest ar))})))
+(defn byte-to-int [byte]
+  (bit-and byte 0xFF))
 
-(defn- interpret-command [dashboard cmd-map trip-km abs-km speed-buffer temp-buffer]
-  (let [cmd (:command cmd-map)]
-    (println cmd)
-    (.setAbs dashboard true)
-    ;(case cmd
-    ;  abs-anomaly-off (.setAbs dashboard false)
-    ;  abs-anomaly-on (.setAbs dashboard true))
-    ))
+(defn- process-command [cmd-ar]
+  (let [ar-size (count cmd-ar)]
+    (if (= 1 ar-size)
+      {:command (byte-to-int (first cmd-ar))}
+      {:command (byte-to-int (first cmd-ar))
+       :value (bytes-to-int (rest cmd-ar))})))
+
+(defn calculate-distance [speed]
+  (* (* 0.89288 (Math/pow 1.0073 speed) 0.00181)))
+
+(defn- speed-distance-interpreter [dashboard speed trip-km abs-km]
+  (let [distance (calculate-distance speed)
+        trip (+ trip-km distance)
+        abs (+ abs-km distance)]
+    (doto dashboard
+      (.setDistance trip)
+      (.setTotalDistance abs))
+    [trip abs (conj speed)]))
+
+(defn- interpret-command [dashboard cmd-map trip-km abs-km temp-buffer]
+  (let [cmd (:command cmd-map)
+        val (:value cmd-map)]
+    (cond
+      (= abs-anomaly-off cmd) (do (.setAbs dashboard false) [trip-km abs-km temp-buffer])
+      (= abs-anomaly-on cmd) (do (.setAbs dashboard true) [trip-km abs-km temp-buffer])
+      (= battery-off cmd) (do (.setBattery dashboard false) [trip-km abs-km temp-buffer])
+      (= battery-on cmd) (do (.setBattery dashboard true) [trip-km abs-km temp-buffer])
+      (= brakes-oil-off cmd) (do (.setBrakesOil dashboard false) [trip-km abs-km temp-buffer])
+      (= brakes-oil-on cmd) (do (.setBrakesOil dashboard true) [trip-km abs-km temp-buffer])
+      (= hig-beam-off cmd) (do (.setHighBeams dashboard false) [trip-km abs-km temp-buffer])
+      (= high-beam-on cmd) (do (.setHighBeams dashboard true) [trip-km abs-km temp-buffer])
+      (= oil-pressure-off cmd) (do (.setOilPressure dashboard false) [trip-km abs-km temp-buffer])
+      (= oil-pressure-on cmd) (do (.setOilPressure dashboard true) [trip-km abs-km temp-buffer])
+      (= parking-brake-off cmd) (do (.setParking dashboard false) [trip-km abs-km temp-buffer])
+      (= parking-brake-on cmd) (do (.setParking dashboard true) [trip-km abs-km temp-buffer])
+      (= turning-signs-off cmd) (do (.setTurnSigns dashboard false) [trip-km abs-km temp-buffer])
+      (= turning-signs-on cmd) (do (.setTurnSigns dashboard true) [trip-km abs-km temp-buffer])
+      (= spark-plugs-off cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km temp-buffer])
+      (= spark-plugs-on cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km temp-buffer])
+      (= reset-trip-km cmd) (do (.resetDistance dashboard) [0 abs-km temp-buffer])
+      (= speed-pulse cmd) (let [[trip abs] (speed-distance-interpreter dashboard val trip-km abs-km)]
+                            (.setSpeed dashboard val)
+                            [trip abs temp-buffer])
+      (= rpm-pulse cmd) (do (.setRpm dashboard (/ (* val 900) 155)) [trip-km abs-km temp-buffer])
+      (= temperature-value cmd) (do [trip-km abs-km temp-buffer])))) ;;<--- implement this
 
 (defn receive-loop
   "Given a function and DatagramSocket, will (in another thread) wait
@@ -111,17 +159,15 @@
             absolute-km 0
             ;trip trip-km
             ;absolute-km cnst-km
-            speed-buffer []
+            []
             temp-buffer []]
-    (let [[] (interpret-command dashboard
-                                (<!! cpu-channel)
-                                trip
-                                absolute-km
-                                speed-buffer
-                                temp-buffer)]
-      (recur trip absolute-km speed-buffer temp-buffer))))
+    (let [record (<!! cpu-channel)
+          [trip-km abs-km temp-buffer] (interpret-command dashboard
+                                                          record
+                                                          trip
+                                                          absolute-km
+
+                                                          temp-buffer)]
+      (prn)
+      (recur trip-km abs-km temp-buffer))))
 ;))
-;make the interpret command return a vector
-; of updated values to use in recur
-
-
