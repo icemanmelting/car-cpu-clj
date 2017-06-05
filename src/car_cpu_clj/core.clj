@@ -41,21 +41,22 @@
 (def ignition-off 170)
 (def turn-off 168)
 
-;;IMPLEMENT THIS FOR TEMPERATURE CREATION
-;protected static final float CAR_TERMISTOR_ALPHA_VALUE = -0.00001423854206f;
-;protected static final float CAR_TERMISTOR_BETA_VALUE = 0.0007620444171f;
-;protected static final float CAR_TERMISTOR_C_VALUE = -0.000006511973919f;
-;public static final byte TEMPERATURE_VALUE = (byte) 0b1100_0000;
-;public static final int TEMPERATURE_BUFFER_SIZE = 256;
-;static final int PULL_UP_RESISTOR_VALUE = 975;
-;static final double VOLTAGE_LEVEL = 12;
-;static final int PIN_RESOLUTION = 1023;
-;static final double STEP = (double) 15 / (double) PIN_RESOLUTION;
-;
-;double voltageLevel = analogLevel * STEP;
-;double resistance = (voltageLevel * PULL_UP_RESISTOR_VALUE) / (VOLTAGE_LEVEL - voltageLevel);
-;double temperature = 1 / (CAR_TERMISTOR_ALPHA_VALUE + CAR_TERMISTOR_BETA_VALUE * (Math.log(resistance)) + CAR_TERMISTOR_C_VALUE * Math.log(resistance) * Math.log(resistance) * Math.log(resistance)) - 273.15;
+;;values for temperature calculation
+(def car-thermistor-alpha-value -0.00001423854206)
+(def car-thermistor-beta-value 0.0007620444171)
+(def car-thermistor-c-value -0.000006511973919)
+(def car-pullup-resistor-value 975)
+(def voltage-level 12)
+(def pin-resolution 1023)
+(def step (/ 15 pin-resolution))
 
+(defn- calculate-temperature [analog-level]
+  (let [v-lvl (* analog-level step)
+        resistance (/ (* v-lvl car-pullup-resistor-value) (- voltage-level v-lvl))]
+    (- (/ 1 (+ car-thermistor-alpha-value
+               (* car-thermistor-beta-value (Math/log resistance))
+               (* car-thermistor-c-value (Math/pow (Math/log resistance) 3))))
+       273.15)))
 
 (defn make-socket
   ([] (new DatagramSocket))
@@ -109,15 +110,21 @@
   (* (* 0.89288 (Math/pow 1.0073 speed) 0.00181)))
 
 (defn- speed-distance-interpreter [dashboard speed trip-km abs-km]
-  (let [distance (calculate-distance speed)
-        trip (+ trip-km distance)
-        abs (+ abs-km distance)]
-    (doto dashboard
-      (.setDistance trip)
-      (.setTotalDistance abs))
-    [trip abs (conj speed)]))
+  (if (and (> speed 0) (<= speed 220))
+    (let [distance (calculate-distance speed)
+          trip (+ trip-km distance)
+          abs (+ abs-km distance)]
+      (doto dashboard
+        (.setDistance trip)
+        (.setTotalDistance abs))
+      (.setSpeed dashboard val)
+      [trip abs])
+    [trip-km abs-km]))
 
 (defn avg [ar] (/ (reduce + ar) (count ar)))
+
+(defn fuel-value-interpreter [resistance]
+  (+ -50153.53 (/ (- 104.5813 -50153.53) (+ 1 (Math/pow (/ resistance 16570840000) 0.3447283)))))
 
 (defn- interpret-command [dashboard cmd-map trip-km abs-km diesel-buffer temp-buffer]
   (let [cmd (:command cmd-map)
@@ -138,18 +145,27 @@
       (= turning-signs-off cmd) (do (.setTurnSigns dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
       (= turning-signs-on cmd) (do (.setTurnSigns dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
       (= spark-plugs-off cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
-      (= spark-plugs-on cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km diesel-buffer temp-buffer])
+      (= spark-plugs-on cmd) (do (.setSparkPlug dashboard true) [trip-km abs-km diesel-buffer temp-buffer])
       (= reset-trip-km cmd) (do (.resetDistance dashboard) [0 abs-km diesel-buffer temp-buffer])
       (= speed-pulse cmd) (let [[trip abs] (speed-distance-interpreter dashboard val trip-km abs-km)]
-                            (.setSpeed dashboard val)
                             [trip abs diesel-buffer temp-buffer])
       (= rpm-pulse cmd) (do (.setRpm dashboard (/ (* val 900) 155)) [trip-km abs-km diesel-buffer temp-buffer])
-      (= diesel-value cmd) (do (if (= diesel-buffer-size (count diesel-buffer))
-                                 (do
-                                   (.setDiesel dashboard (avg diesel-buffer))
-                                   [trip-km abs-km diesel-buffer [] temp-buffer])
-                                 [trip-km abs-km (conj diesel-buffer val) diesel-buffer temp-buffer]))
-      (= temperature-value cmd) (do [trip-km abs-km diesel-buffer diesel-buffer temp-buffer])))) ;;<--- implement this
+      (= diesel-value cmd) (do
+                             (if (>= (count diesel-buffer) diesel-buffer-size )
+                               (do
+                                 (let [fuel-lvl (fuel-value-interpreter (avg diesel-buffer))]
+                                   (if (< fuel-lvl 0)
+                                     (.setDiesel dashboard 0)
+                                     (.setDiesel dashboard fuel-lvl))
+                                   [trip-km abs-km [] temp-buffer]))
+                               [trip-km abs-km (conj diesel-buffer val) temp-buffer]))
+      (= temperature-value cmd) (do
+                                  (if (>= (count temp-buffer) temperature-buffer-size )
+                                    (do
+                                      (.setTemp dashboard (avg temp-buffer))
+                                      [trip-km abs-km diesel-buffer []])
+                                    [trip-km abs-km diesel-buffer (conj temp-buffer val)])
+                                  [trip-km abs-km diesel-buffer temp-buffer]))))
 
 (defn receive-loop
   "Given a function and DatagramSocket, will (in another thread) wait
@@ -169,7 +185,7 @@
           cnst-km (:constant_kilometers car-settings)]
       (doto dashboard (.setDistance trip-km)
                       (.setTotalDistance cnst-km))
-      (receive-loop (make-socket 9999) dashboard)
+      (receive-loop (make-socket 9887) dashboard)
       (go-loop [trip trip-km
                 absolute-km cnst-km
                 diesel-buffer []
@@ -181,6 +197,5 @@
                                                                     absolute-km
                                                                     diesel-buffer
                                                                     temp-buffer)]
-          (prn)
           (recur trip-km abs-km d-buffer t-buffer))))
     (prn "Could not get car settings, is there somethign wrong with the connection?")))
