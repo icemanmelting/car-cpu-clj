@@ -166,46 +166,44 @@
                                 (create-log "INFO" "Ignition turned on")
                                 (.exec (Runtime/getRuntime) "/etc/init.d/turnonscreen.sh")
                                 (catch Exception e
-                                  ;(create-log "ERROR" "Could not read script to turn on screen")
-                                  ))
+                                  (create-log "ERROR" "Could not read script to turn on screen")))
                               [trip-km abs-km diesel-buffer temp-buffer settings-id])
       (= turn-off cmd) (do (try
                              (.exec (Runtime/getRuntime) "/etc/init.d/turnOff.sh")
                              (catch Exception e
-                               ;(create-log "ERROR" "Could not read script to turn cpu off")
-                               ))
+                               (create-log "ERROR" "Could not read script to turn cpu off")))
                            [trip-km abs-km diesel-buffer temp-buffer settings-id])
       @ignition (cond
                   (= abs-anomaly-off cmd) (do (.setAbs dashboard false) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= abs-anomaly-on cmd) (do (.setAbs dashboard true)
-                                             ;(if-car-running->error dashboard "ABS sensor error. Maybe one of the speed sensors s broken?")
+                                             (if-car-running->error dashboard "ABS sensor error. Maybe one of the speed sensors s broken?")
                                              [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= battery-off cmd) (do (.setBattery dashboard false) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= battery-on cmd) (do (.setBattery dashboard true)
-                                         ;(if-car-running->error dashboard "Battery not charging. Something wrong with the alternator.")
+                                         (if-car-running->error dashboard "Battery not charging. Something wrong with the alternator.")
                                          [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= brakes-oil-off cmd) (do (.setBrakesOil dashboard false) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= brakes-oil-on cmd) (do (.setBrakesOil dashboard true)
-                                          ;  (if-car-running->error dashboard "Brakes Oil pressure is too low!")
+                                            (if-car-running->error dashboard "Brakes Oil pressure is too low!")
                                             [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= hig-beam-off cmd) (do
-                                         ;(create-log "INFO" "High beams off")
+                                         (create-log "INFO" "High beams off")
                                          (.setHighBeams dashboard false)
                                          [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= high-beam-on cmd) (do
-                                         ;(create-log "INFO" "High beams on")
+                                         (create-log "INFO" "High beams on")
                                          (.setHighBeams dashboard true)
                                          [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= oil-pressure-off cmd) (do (.setOilPressure dashboard false) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= oil-pressure-on cmd) (do (.setOilPressure dashboard true)
-                                          ;    (if-car-running->error dashboard "Engine's oil pressure is low.")
+                                              (if-car-running->error dashboard "Engine's oil pressure is low.")
                                               [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= parking-brake-off cmd) (do
-                                           ;   (create-log "INFO" "Car park brake disengaged")
+                                              (create-log "INFO" "Car park brake disengaged")
                                               (.setParking dashboard false)
                                               [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= parking-brake-on cmd) (do
-                                            ; (create-log "INFO" "Car park brake used")
+                                             (create-log "INFO" "Car park brake used")
                                              (.setParking dashboard true)
                                              [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= turning-signs-off cmd) (do (.setTurnSigns dashboard false) [trip-km abs-km diesel-buffer temp-buffer settings-id])
@@ -213,7 +211,7 @@
                   (= spark-plugs-off cmd) (do (.setSparkPlug dashboard false) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= spark-plugs-on cmd) (do (.setSparkPlug dashboard true) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= reset-trip-km cmd) (do
-                                          ;(create-log "INFO" "Trip km reseted")
+                                          (create-log "INFO" "Trip km reseted")
                                           (.resetDistance dashboard)
                                           [0 abs-km diesel-buffer temp-buffer settings-id])
                   (= speed-pulse cmd) (let [[trip abs] (speed/speed-distance-interpreter dashboard val trip-km abs-km)]
@@ -225,8 +223,8 @@
                                          [trip-km abs-km (conj diesel-buffer val) temp-buffer settings-id])
                   (= temperature-value cmd) (if (>= (count temp-buffer) temperature-buffer-size)
                                               (let [temp (temp/calculate-temperature dashboard (avg temp-buffer))]
-                                                ;(when (> temp 110)
-                                                ;  (create-log "INFO" "Engine temperature critical!"))
+                                                (when (> temp 110)
+                                                  (create-log "INFO" "Engine temperature critical!"))
                                                 [trip-km abs-km diesel-buffer (rest temp-buffer) settings-id])
                                               [trip-km abs-km diesel-buffer (conj temp-buffer val) settings-id])
                   (= ignition-off cmd) (do (reset! ignition false)
@@ -240,10 +238,9 @@
                                            (at (+ 5000 (now)) #(try
                                                                  (.exec (Runtime/getRuntime) "/etc/init.d/shutdownScreen.sh")
                                                                  (catch Exception e
-                                                                   ;(create-log "INFO" "Could not read script to shutdown screen")
-                                                                   )) my-pool)
+                                                                   (create-log "INFO" "Could not read script to shutdown screen"))) my-pool)
                                            (reset-dashboard dashboard)
-                                           ;(create-log "INFO" "Ignition turned off")
+                                           (create-log "INFO" "Ignition turned off")
                                            (make-request {:op_type "car_settings_up"
                                                           :id settings-id
                                                           :constant_km abs-km
