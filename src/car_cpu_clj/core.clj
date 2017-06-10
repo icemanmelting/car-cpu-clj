@@ -245,7 +245,7 @@
                                                             :max_temp @max-temp
                                                             :max_speed @max-speed
                                                             :trip_l @trip-length})
-                                             (at (+ 5000 (now)) (try
+                                             (at (+ 5000 (now)) #(try
                                                                   (.exec (Runtime/getRuntime) "/etc/init.d/shutdownScreen.sh")
                                                                   (catch Exception e
                                                                     (make-request {:op_type "car_log_new"
