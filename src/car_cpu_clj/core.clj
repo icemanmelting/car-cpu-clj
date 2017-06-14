@@ -217,16 +217,17 @@
                   (= speed-pulse cmd) (let [[trip abs] (speed/speed-distance-interpreter dashboard val trip-km abs-km)]
                                         [trip abs diesel-buffer temp-buffer settings-id])
                   (= rpm-pulse cmd) (do (.setRpm dashboard (/ (* val 900) 155)) [trip-km abs-km diesel-buffer temp-buffer settings-id])
-                  (= diesel-value cmd) (if (>= (count diesel-buffer) diesel-buffer-size)
+                  (= diesel-value cmd) (if (< (count diesel-buffer) diesel-buffer-size)
+                                         [trip-km abs-km (conj diesel-buffer val) temp-buffer settings-id]
                                          (do (fuel-value-interpreter dashboard (avg diesel-buffer))
-                                             [trip-km abs-km (rest diesel-buffer) temp-buffer settings-id])
-                                         [trip-km abs-km (conj diesel-buffer val) temp-buffer settings-id])
-                  (= temperature-value cmd) (if (>= (count temp-buffer) temperature-buffer-size)
+                                             [trip-km abs-km [] temp-buffer settings-id]))
+                  (= temperature-value cmd) (if (< (count temp-buffer) temperature-buffer-size)
+                                              [trip-km abs-km diesel-buffer (conj temp-buffer val) settings-id]
                                               (let [temp (temp/calculate-temperature dashboard (avg temp-buffer))]
                                                 (when (> temp 110)
                                                   (create-log "INFO" "Engine temperature critical!"))
-                                                [trip-km abs-km diesel-buffer (rest temp-buffer) settings-id])
-                                              [trip-km abs-km diesel-buffer (conj temp-buffer val) settings-id])
+                                                [trip-km abs-km diesel-buffer [] settings-id]))
+
                   (= ignition-off cmd) (do (reset! ignition false)
                                            (stop-and-reset-pool! my-pool :strategy :kill)
                                            (make-request {:op_type "car_trip_up"
