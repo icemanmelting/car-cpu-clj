@@ -140,6 +140,7 @@
     (.setTemp 0)
     (.setRpm 0)
     (.setSpeed 0)
+    (.setGear 0)
     (.setAbs false)
     (.setSparkPlug false)
     (.setParking false)
