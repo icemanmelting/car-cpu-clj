@@ -1,9 +1,11 @@
 (ns car-cpu-clj.speed-rpm-reader
   (:require [car-data-clj.db :as db]
-            [car-data-clj.core :refer [make-request]]))
+            [car-data-clj.core :refer [make-request]]
+            [car-ai-clj.core :as ai]))
 
 (def trip-length (atom 0))
 (def max-speed (atom 0))
+(def rpm-atom (atom 0))
 
 (defn reset-speed-atoms []
   (reset! max-speed 0)
@@ -13,7 +15,7 @@
   (* (* 0.89288 (Math/pow 1.0073 speed) 0.00181)))
 
 (defn speed-distance-interpreter [dashboard speed trip-km abs-km]
-  (if (and (> speed 0) (<= speed 220) (> (.getRpm dashboard) 0))
+  (if (and (> speed 0) (<= speed 220) (> @rpm-atom 0))
     (let [distance (calculate-distance speed)
           trip (+ trip-km distance)
           abs (+ abs-km distance)]
@@ -23,7 +25,8 @@
       (doto dashboard
         (.setDistance trip)
         (.setTotalDistance abs)
-        (.setSpeed speed))
+        (.setSpeed speed)
+        (.setGear (ai/get-gear speed @rpm-atom)))
       [trip abs])
     [trip-km abs-km]))
 
@@ -34,3 +37,8 @@
                  :speed speed
                  :rpm rpm
                  :gear 0}))
+
+(defn set-rpm [dashboard val]
+  (let [rpm (/ (* val 900) 155)]
+    (.setRpm dashboard rpm)
+  (reset! rpm-atom rpm)))

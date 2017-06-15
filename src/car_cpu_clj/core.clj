@@ -216,7 +216,7 @@
                                           [0 abs-km diesel-buffer temp-buffer settings-id])
                   (= speed-pulse cmd) (let [[trip abs] (speed/speed-distance-interpreter dashboard val trip-km abs-km)]
                                         [trip abs diesel-buffer temp-buffer settings-id])
-                  (= rpm-pulse cmd) (do (.setRpm dashboard (/ (* val 900) 155)) [trip-km abs-km diesel-buffer temp-buffer settings-id])
+                  (= rpm-pulse cmd) (do (speed/set-rpm dashboard val) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= diesel-value cmd) (if (< (count diesel-buffer) diesel-buffer-size)
                                          [trip-km abs-km (conj diesel-buffer val) temp-buffer settings-id]
                                          (do (fuel-value-interpreter dashboard (avg diesel-buffer))
