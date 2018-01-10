@@ -149,8 +149,16 @@
     (.setBrakesOil false)
     (.setBattery false)))
 
-(defn fuel-value-interpreter [dashboard resistance]
-  (let [fuel-lvl (+ -50153.53 (/ (- 104.5813 -50153.53) (+ 1 (Math/pow (/ resistance 16570840000) 0.3447283))))]
+(def car-pullup-resistor-value 975)
+(def voltage-level 10.05)
+(def pin-resolution 1023)
+(def step (/ 15 pin-resolution))
+;;0.0020904884039643 x X2 - 0.76907118482305 x X + 70.582680644319
+
+(defn fuel-value-interpreter [dashboard analog-level]
+  (let [v-lvl (* (/ analog-level 0.68) step) ;;dirty hack -> to be fixed later
+        resistance (/ (* v-lvl car-pullup-resistor-value) (- voltage-level v-lvl))
+        fuel-lvl (+ -50153.53 (/ (- 104.5813 -50153.53) (+ 1 (Math/pow (/ resistance 16570840000) 0.3447283))))]
     (if (< fuel-lvl 0)
       (.setDiesel dashboard 0)
       (.setDiesel dashboard fuel-lvl))

@@ -6,7 +6,7 @@
 (def car-thermistor-beta-value 0.0007620444171)
 (def car-thermistor-c-value -0.000006511973919)
 (def car-pullup-resistor-value 975)
-(def voltage-level 12)
+(def voltage-level 10.05)
 (def pin-resolution 1023)
 (def step (/ 15 pin-resolution))
 
