@@ -221,7 +221,7 @@
                   (= spark-plugs-on cmd) (do (.setSparkPlug dashboard true) [trip-km abs-km diesel-buffer temp-buffer settings-id])
                   (= reset-trip-km cmd) (do
                                           (create-log "INFO" "Trip km reseted")
-                                          (.resetDistance dashboard)
+                                          (speed/reset-trip-distance dashboard)
                                           [0 abs-km diesel-buffer temp-buffer settings-id])
                   (= speed-pulse cmd) (let [[trip abs] (speed/speed-distance-interpreter dashboard val trip-km abs-km)]
                                         [trip abs diesel-buffer temp-buffer settings-id])

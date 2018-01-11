@@ -17,18 +17,23 @@
 (defn speed-distance-interpreter [dashboard speed trip-km abs-km]
   (if (and (> speed 0) (<= speed 220) (> @rpm-atom 0))
     (let [distance (calculate-distance speed)
-          trip (+ trip-km distance)
-          abs (+ abs-km distance)]
+          trip (swap! trip-length + distance)
+          abs (+ abs-km distance)
+          gear (ai/get-gear speed @rpm-atom)]
       (when (> speed @max-speed)
         (reset! max-speed speed))
-      (swap! trip-length + distance)
+      (reset! trip-length trip)
       (doto dashboard
         (.setDistance trip)
         (.setTotalDistance abs)
         (.setSpeed speed)
-        (.setGear (ai/get-gear speed @rpm-atom)))
+        (.setGear gear))
       [trip abs])
     [trip-km abs-km]))
+
+(defn reset-trip-distance [dashboard]
+  (reset! trip-length 0)
+  (.resetDistance dashboard))
 
 (defn create-speed-data [speed rpm trip-id]
   (make-request {:op_type "car_speed_new"
@@ -36,9 +41,9 @@
                  :trip_id trip-id
                  :speed speed
                  :rpm rpm
-                 :gear 0}))
+                 :gear (ai/get-gear speed rpm)}))
 
 (defn set-rpm [dashboard val]
   (let [rpm (/ (* val 900) 155)]
     (.setRpm dashboard rpm)
-  (reset! rpm-atom rpm)))
+    (reset! rpm-atom rpm)))
