@@ -9,7 +9,8 @@
 
 (defn reset-speed-atoms []
   (reset! max-speed 0)
-  (reset! trip-length 0))
+  (reset! trip-length 0)
+  (reset! rpm-atom 0))
 
 (defn calculate-distance [speed]
   (* (* 0.89288 (Math/pow 1.0073 speed) 0.00181)))
@@ -22,7 +23,6 @@
           gear (ai/get-gear speed @rpm-atom)]
       (when (> speed @max-speed)
         (reset! max-speed speed))
-      (reset! trip-length trip)
       (doto dashboard
         (.setDistance trip)
         (.setTotalDistance abs)

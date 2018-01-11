@@ -244,7 +244,7 @@
                                                           :ending_km abs-km
                                                           :max_temp @temp/max-temp
                                                           :max_speed @speed/max-speed
-                                                          :trip_l @speed/trip-length})
+                                                          :trip_l trip-km})
                                            (at (+ 5000 (now)) #(try
                                                                  (.exec (Runtime/getRuntime) "/etc/init.d/shutdownScreen.sh")
                                                                  (catch Exception e
