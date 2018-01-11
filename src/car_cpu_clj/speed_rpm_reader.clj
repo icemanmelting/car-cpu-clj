@@ -9,13 +9,12 @@
 
 (defn reset-speed-atoms []
   (reset! max-speed 0)
-  (reset! trip-length 0)
   (reset! rpm-atom 0))
 
 (defn calculate-distance [speed]
   (* (* 0.89288 (Math/pow 1.0073 speed) 0.00181)))
 
-(defn speed-distance-interpreter [dashboard speed trip-km abs-km]
+(defn speed-distance-interpreter [dashboard speed abs-km]
   (if (and (> speed 0) (<= speed 220) (> @rpm-atom 0))
     (let [distance (calculate-distance speed)
           trip (swap! trip-length + distance)
@@ -28,8 +27,8 @@
         (.setTotalDistance abs)
         (.setSpeed speed)
         (.setGear gear))
-      [trip abs])
-    [trip-km abs-km]))
+      abs)
+    abs-km))
 
 (defn reset-trip-distance [dashboard]
   (reset! trip-length 0)
