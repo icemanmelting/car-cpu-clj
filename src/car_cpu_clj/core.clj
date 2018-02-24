@@ -5,49 +5,15 @@
     :init init
     :methods [#^{:static true} [startCPU [pt.iceman.carscreentools.Dashboard java.util.UUID] void]
               #^{:static true} [resetDashTripKm [] boolean]])
-  (:require [car-data-clj.core :refer [make-request]]
-            [clojure.core.async :as a :refer [<! <!! chan go-loop >!! go >!]]
-            [car-data-clj.core :as data]
-            [car-data-clj.db :as db]
-            [car-cpu-clj.temperature-reader :as temp]
+  (:require [clojure.core.async :as a :refer [<! <!! chan go-loop >!! go >!]]
+            [car-cpu-clj.com-protocol-interpreter :refer [reset-trip-km ignition-state]]
             [car-cpu-clj.speed-rpm-reader :as speed]
-            [overtone.at-at :refer [at every mk-pool now stop-and-reset-pool!]])
+            [car-data-clj.core :as data])
   (import (java.net DatagramSocket
                     DatagramPacket
                     InetSocketAddress)
           (pt.iceman.carscreentools Dashboard)
           (java.util UUID)))
-
-(def abs-anomaly-off 128)
-(def abs-anomaly-on 143)
-(def battery-off 32)
-(def battery-on 47)
-(def brakes-oil-off 64)
-(def brakes-oil-on 79)
-(def hig-beam-off 144)
-(def high-beam-on 159)
-(def oil-pressure-off 16)
-(def oil-pressure-on 31)
-(def parking-brake-off 48)
-(def parking-brake-on 63)
-(def turning-signs-off 80)
-(def turning-signs-on 95)
-(def spark-plugs-off 112)
-(def spark-plugs-on 127)
-(def reset-trip-km 1)
-(def rpm-pulse 180)
-(def speed-pulse 176)
-(def temperature-value 192)
-(def temperature-buffer-size 256)
-(def diesel-value 224)
-(def diesel-buffer-size 512)
-(def ignition-on 171)
-(def ignition-off 170)
-(def turn-off 168)
-
-(def ignition (atom false))
-(def trip-id (atom (db/uuid)))
-(def my-pool (mk-pool))
 
 (defn make-socket
   ([] (new DatagramSocket))
@@ -80,6 +46,9 @@
     (.receive socket packet)
     (.getData packet)))
 
+(defn- interpret-command [dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
+  (ignition-state dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))
+
 (defn bytes-to-int
   ([bytes]
    (bit-or (bit-and (first bytes)
@@ -96,170 +65,6 @@
       {:command (byte-to-int (first cmd-ar))}
       {:command (byte-to-int (first cmd-ar))
        :value (bytes-to-int (rest cmd-ar))})))
-
-(defn avg [ar] (/ (reduce + ar) (count ar)))
-
-(defn- create-log [type msg]
-  (make-request {:op_type "car_log_new"
-                 :id (db/uuid)
-                 :trip_id @trip-id
-                 :msg msg
-                 :log_level type}))
-
-(defn- if-car-running->error [dashboard msg]
-  (when (> (.getRpm dashboard) 0)
-    (create-log "ERROR" msg)))
-
-(defn- reset-atoms []
-  (reset! ignition true)
-  (reset! trip-id (db/uuid))
-  (temp/reset-temp-atom 0)
-  (speed/reset-speed-atoms))
-
-(defn- start-new-trip [dashboard settings-id]
-  (reset-atoms)
-  (make-request {:op_type "car_trip_new"
-                 :id @trip-id
-                 :starting_km (.getTotalDistance dashboard)})
-  (every 200000 #(speed/create-speed-data (.getSpeed dashboard)
-                                          (.getRpm dashboard)
-                                          @trip-id)
-         my-pool)
-  (every 200000 #(temp/create-temperature-data (.getTemp dashboard)
-                                               @trip-id)
-         my-pool)
-  (every 200000 #(make-request {:op_type "car_settings_up"
-                                :id settings-id
-                                :constant_km (.getTotalDistance dashboard)
-                                :trip_km (.getDistance dashboard)})
-         my-pool))
-
-(defn- reset-dashboard [dashboard]
-  (doto dashboard
-    (.setDiesel 0)
-    (.setTemp 0)
-    (.setRpm 0)
-    (.setSpeed 0)
-    (.setGear 0)
-    (.setAbs false)
-    (.setSparkPlug false)
-    (.setParking false)
-    (.setTurnSigns false)
-    (.setOilPressure false)
-    (.setBrakesOil false)
-    (.setBattery false)))
-
-(def car-pullup-resistor-value 975)
-(def voltage-level 10.05)
-(def pin-resolution 1023)
-(def step (/ 15 pin-resolution))
-;;0.0020904884039643 x X2 - 0.76907118482305 x X + 70.582680644319
-
-(defn fuel-value-interpreter [dashboard analog-level]
-  (let [v-lvl (* (/ analog-level 0.68) step)                ;;dirty hack -> to be fixed later
-        resistance (/ (* v-lvl car-pullup-resistor-value) (- voltage-level v-lvl))
-        fuel-lvl (+ -50153.53 (/ (- 104.5813 -50153.53) (+ 1 (Math/pow (/ resistance 16570840000) 0.3447283))))]
-    (if (< fuel-lvl 0)
-      (.setDiesel dashboard 0)
-      (.setDiesel dashboard fuel-lvl))
-    (when (< fuel-lvl 6)
-      (create-log "INFO" "Reserve fuel reached. Please refill tank!"))
-    fuel-lvl))
-
-(defn- interpret-command [dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
-  (let [cmd (:command cmd-map)
-        val (:value cmd-map)]
-    (cond
-      (= ignition-on cmd) (do (try
-                                (start-new-trip dashboard settings-id)
-                                (create-log "INFO" "Ignition turned on")
-                                (.exec (Runtime/getRuntime) "/etc/init.d/turnonscreen.sh")
-                                (catch Exception e
-                                  (create-log "ERROR" "Could not read script to turn on screen")))
-                              [abs-km diesel-buffer temp-buffer settings-id])
-      (= turn-off cmd) (do (try
-                             (.exec (Runtime/getRuntime) "/etc/init.d/turnOff.sh")
-                             (catch Exception e
-                               (create-log "ERROR" "Could not read script to turn cpu off")))
-                           [abs-km diesel-buffer temp-buffer settings-id])
-      @ignition (cond
-                  (= abs-anomaly-off cmd) (do (.setAbs dashboard false) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= abs-anomaly-on cmd) (do (.setAbs dashboard true)
-                                             (if-car-running->error dashboard "ABS sensor error. Maybe one of the speed sensors s broken?")
-                                             [abs-km diesel-buffer temp-buffer settings-id])
-                  (= battery-off cmd) (do (.setBattery dashboard false) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= battery-on cmd) (do (.setBattery dashboard true)
-                                         (if-car-running->error dashboard "Battery not charging. Something wrong with the alternator.")
-                                         [abs-km diesel-buffer temp-buffer settings-id])
-                  (= brakes-oil-off cmd) (do (.setBrakesOil dashboard false) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= brakes-oil-on cmd) (do (.setBrakesOil dashboard true)
-                                            (if-car-running->error dashboard "Brakes Oil pressure is too low!")
-                                            [abs-km diesel-buffer temp-buffer settings-id])
-                  (= hig-beam-off cmd) (do
-                                         (create-log "INFO" "High beams off")
-                                         (.setHighBeams dashboard false)
-                                         [abs-km diesel-buffer temp-buffer settings-id])
-                  (= high-beam-on cmd) (do
-                                         (create-log "INFO" "High beams on")
-                                         (.setHighBeams dashboard true)
-                                         [abs-km diesel-buffer temp-buffer settings-id])
-                  (= oil-pressure-off cmd) (do (.setOilPressure dashboard false) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= oil-pressure-on cmd) (do (.setOilPressure dashboard true)
-                                              (if-car-running->error dashboard "Engine's oil pressure is low.")
-                                              [abs-km diesel-buffer temp-buffer settings-id])
-                  (= parking-brake-off cmd) (do
-                                              (create-log "INFO" "Car park brake disengaged")
-                                              (.setParking dashboard false)
-                                              [abs-km diesel-buffer temp-buffer settings-id])
-                  (= parking-brake-on cmd) (do
-                                             (create-log "INFO" "Car park brake used")
-                                             (.setParking dashboard true)
-                                             [abs-km diesel-buffer temp-buffer settings-id])
-                  (= turning-signs-off cmd) (do (.setTurnSigns dashboard false) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= turning-signs-on cmd) (do (.setTurnSigns dashboard true) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= spark-plugs-off cmd) (do (.setSparkPlug dashboard false) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= spark-plugs-on cmd) (do (.setSparkPlug dashboard true) [abs-km diesel-buffer temp-buffer settings-id])
-                  (= reset-trip-km cmd) (do
-                                          (create-log "INFO" "Trip km reseted")
-                                          (speed/reset-trip-distance dashboard)
-                                          [abs-km diesel-buffer temp-buffer settings-id])
-                  (= speed-pulse cmd) (let [abs (speed/speed-distance-interpreter dashboard val abs-km)]
-                                        [abs diesel-buffer temp-buffer settings-id])
-                  (= rpm-pulse cmd) (do (speed/set-rpm dashboard val)
-                                        [abs-km diesel-buffer temp-buffer settings-id])
-                  (= diesel-value cmd) (if (< (count diesel-buffer) diesel-buffer-size)
-                                         [abs-km (conj diesel-buffer val) temp-buffer settings-id]
-                                         (do
-                                           (fuel-value-interpreter dashboard (avg diesel-buffer))
-                                           [abs-km [] temp-buffer settings-id]))
-                  (= temperature-value cmd) (if (< (count temp-buffer) temperature-buffer-size)
-                                              [abs-km diesel-buffer (conj temp-buffer val) settings-id]
-                                              (let [temp (temp/calculate-temperature dashboard (avg temp-buffer))]
-                                                (when (> temp 110)
-                                                  (create-log "INFO" "Engine temperature critical!"))
-                                                [abs-km diesel-buffer [] settings-id]))
-                  (= ignition-off cmd) (do
-                                         (reset! ignition false)
-                                         (stop-and-reset-pool! my-pool :strategy :kill)
-                                         (make-request {:op_type "car_trip_up"
-                                                        :id @trip-id
-                                                        :ending_km abs-km
-                                                        :max_temp @temp/max-temp
-                                                        :max_speed @speed/max-speed
-                                                        :trip_l @speed/trip-length})
-                                         (at (+ 5000 (now)) #(try
-                                                               (.exec (Runtime/getRuntime) "/etc/init.d/shutdownScreen.sh")
-                                                               (catch Exception e
-                                                                 (create-log "INFO" "Could not read script to shutdown screen"))) my-pool)
-                                         (reset-dashboard dashboard)
-                                         (create-log "INFO" "Ignition turned off")
-                                         (make-request {:op_type "car_settings_up"
-                                                        :id settings-id
-                                                        :constant_km abs-km
-                                                        :trip_km @speed/trip-length})
-                                         [abs-km diesel-buffer temp-buffer settings-id])
-                  :else [abs-km diesel-buffer temp-buffer settings-id])
-      :else [abs-km diesel-buffer temp-buffer settings-id])))
 
 (defn receive-loop
   "Given a function and DatagramSocket, will (in another thread) wait
@@ -286,11 +91,6 @@
                 temp-buffer []
                 settings-id id]
         (let [record (<!! cpu-channel)
-              [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard
-                                                                        record
-                                                                        absolute-km
-                                                                        diesel-buffer
-                                                                        temp-buffer
-                                                                        settings-id)]
+              [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard record absolute-km diesel-buffer temp-buffer settings-id)]
           (recur abs-km d-buffer t-buffer settings-id))))
-    (prn "Could not get car settings, is there somethign wrong with the connection?")))
+    (prn "Could not get car settings, is there something wrong with the connection?")))
