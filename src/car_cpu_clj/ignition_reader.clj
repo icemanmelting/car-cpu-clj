@@ -2,9 +2,9 @@
   (:require [car-cpu-clj.speed-rpm-reader :as speed]
             [car-cpu-clj.temperature-reader :as temp]
             [car-data-clj.core :refer [make-request]]
-            [car-cpu-clj.interpreter.interpreter :refer [reset-atoms trip-id create-log reset-dashboard]]
-            [car-cpu-clj.interpreter.ignition-state-based-interpreter :refer [command->action-ignition-on command->action-ignition-off]]
-            [overtone.at-at :refer [at every mk-pool now stop-and-reset-pool!]])
+            [car-cpu-clj.interpreter.interpreter :refer [trip-id create-log reset-dashboard]]
+            [overtone.at-at :refer [at every mk-pool now stop-and-reset-pool!]]
+            [car-data-clj.db :as db])
   (:import (pt.iceman.carscreentools Dashboard)))
 
 (def ignition (atom false))
@@ -12,6 +12,12 @@
 
 (defn reset-ignition-atom [val]
   (reset! ignition val))
+
+(defn- reset-atoms []
+  (reset! trip-id (db/uuid))
+  (reset-ignition-atom true)
+  (temp/reset-temp-atom 0)
+  (speed/reset-speed-atoms))
 
 (defn- start-new-trip [dashboard settings-id]
   (reset-atoms)
@@ -60,14 +66,3 @@
                  :constant_km abs-km
                  :trip_km @speed/trip-length})
   [abs-km diesel-buffer temp-buffer settings-id])
-
-(defmulti ignition-state
-          (fn [ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
-            ignition))
-
-(defmethod ignition-state false [ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
-  (command->action-ignition-off dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))
-
-(defmethod ignition-state true [ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
-  (command->action-ignition-on dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))
-

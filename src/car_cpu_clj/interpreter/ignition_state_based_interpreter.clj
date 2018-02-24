@@ -148,3 +148,13 @@
 
 (defmethod command->action-ignition-on :default [dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
   [abs-km diesel-buffer temp-buffer settings-id])
+
+(defmulti ignition-state
+          (fn [ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
+            ignition))
+
+(defmethod ignition-state false [ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
+  (command->action-ignition-off dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))
+
+(defmethod ignition-state true [ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
+  (command->action-ignition-on dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))

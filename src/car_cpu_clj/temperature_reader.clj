@@ -1,7 +1,7 @@
 (ns car-cpu-clj.temperature-reader
   (:require [car-data-clj.db :as db]
             [car-data-clj.core :refer [make-request]]
-            [car-cpu-clj.interpreter.interpreter :refer [step car-pullup-resistor-value voltage-level create-log]])
+            [car-cpu-clj.interpreter.interpreter :refer [step car-pullup-resistor-value voltage-level create-log avg]])
   (:import (pt.iceman.carscreentools Dashboard)))
 
 (def car-thermistor-alpha-value -0.00001423854206)
