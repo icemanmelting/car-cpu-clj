@@ -5,7 +5,7 @@
 (def diesel-buffer-size 512)
 
 (defn- calculate-fuel-level [dashboard analog-level]
-  (let [v-lvl (* (/ analog-level 0.68) step);;todo - dirty hack -> to be fixed later
+  (let [v-lvl (* analog-level step)
         resistance (/ (* v-lvl car-pullup-resistor-value) (- voltage-level v-lvl))
         fuel-lvl (+ -50153.53 (/ (- 104.5813 -50153.53) (+ 1 (Math/pow (/ resistance 16570840000) 0.3447283))))]
     (if (< fuel-lvl 0)
