@@ -6,9 +6,10 @@
     :methods [#^{:static true} [startCPU [pt.iceman.carscreentools.Dashboard java.util.UUID] void]
               #^{:static true} [resetDashTripKm [] boolean]])
   (:require [clojure.core.async :as a :refer [<! <!! chan go-loop >!! go >!]]
-            [car-cpu-clj.com-protocol-interpreter :refer [reset-trip-km ignition-state]]
+            [car-cpu-clj.interpreter.com-protocol-interpreter :refer [reset-trip-km ignition ignition-state]]
             [car-cpu-clj.speed-rpm-reader :as speed]
-            [car-data-clj.core :as data])
+            [car-data-clj.core :as data]
+            [car-cpu-clj.ignition-reader :refer [ignition-state ignition]])
   (import (java.net DatagramSocket
                     DatagramPacket
                     InetSocketAddress)
@@ -47,7 +48,7 @@
     (.getData packet)))
 
 (defn- interpret-command [dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id]
-  (ignition-state dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))
+  (ignition-state @ignition dashboard cmd-map abs-km diesel-buffer temp-buffer settings-id))
 
 (defn bytes-to-int
   ([bytes]

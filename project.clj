@@ -1,4 +1,4 @@
-(defproject car-cpu-clj "1.2.0"
+(defproject car-cpu-clj "1.2.1"
   :description "Clojure library to handle communication between the Car CPU and the dashboard"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"

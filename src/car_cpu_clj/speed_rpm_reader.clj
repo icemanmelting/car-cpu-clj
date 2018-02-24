@@ -1,7 +1,8 @@
 (ns car-cpu-clj.speed-rpm-reader
   (:require [car-data-clj.db :as db]
             [car-data-clj.core :refer [make-request]]
-            [car-ai-clj.core :as ai]))
+            [car-ai-clj.core :as ai])
+  (:import (pt.iceman.carscreentools Dashboard)))
 
 (def trip-length (atom 0))
 (def max-speed (atom 0))
