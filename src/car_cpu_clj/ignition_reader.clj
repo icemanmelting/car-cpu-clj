@@ -3,7 +3,7 @@
             [car-cpu-clj.temperature-reader :as temp]
             [car-data-clj.core :refer [make-request]]
             [car-cpu-clj.interpreter.interpreter :refer [reset-atoms trip-id create-log reset-dashboard]]
-            [car-cpu-clj.interpreter.com-protocol-interpreter :refer [command->action-ignition-on command->action-ignition-off]]
+            [car-cpu-clj.interpreter.ignition-state-based-interpreter :refer [command->action-ignition-on command->action-ignition-off]]
             [overtone.at-at :refer [at every mk-pool now stop-and-reset-pool!]])
   (:import (pt.iceman.carscreentools Dashboard)))
 

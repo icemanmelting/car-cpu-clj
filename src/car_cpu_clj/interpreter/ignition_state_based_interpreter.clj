@@ -1,4 +1,4 @@
-(ns car-cpu-clj.interpreter.com-protocol-interpreter
+(ns car-cpu-clj.interpreter.ignition-state-based-interpreter
   (:require [car-data-clj.core :as data :refer [make-request]]
             [car-data-clj.db :as db]
             [car-cpu-clj.temperature-reader :as temp]
