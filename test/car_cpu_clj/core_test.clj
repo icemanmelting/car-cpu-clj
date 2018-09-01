@@ -41,13 +41,17 @@
 
 (deftest testing-dashboard
   (testing ""
+
       (data/make-request {:op_type "car_new"
                           :id car-id
                           :cnst_km 20000
                           :trip_km 1000})
       (Thread/sleep 1000)
+
       (-startCPU TDashboard)
+
       (is (= 20000.0 (.getTotalDistance TDashboard)))
+
       (is (= 1000.0 (.getDistance TDashboard)))
 
       (UDPClient/send (byte-array 1 [UDPClient/IGNITION_ON])
@@ -61,6 +65,7 @@
                         "localhost" 9887)
         (UDPClient/send (byte-array 3 [UDPClient/RPM_PULSE (byte -127) (byte 0)])
                         "localhost" 9887))
+
       (Thread/sleep 1000)
       (is (= 7.076796886707598 (.getDiesel TDashboard)))
       (is (= 749.0322580645161 (.getRpm TDashboard)))

@@ -63,7 +63,7 @@
                           (create-log "INFO" "Could not read script to shutdown screen"))) my-pool)
   (reset-dashboard dashboard)
   (create-log "INFO" "Ignition turned off")
-  (make-request {:op_type "car_settings_up"
+  (make-request {:op_type "car_up"
                  :id settings-id
                  :constant_km abs-km
                  :trip_km @speed/trip-length})
