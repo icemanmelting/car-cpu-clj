@@ -1,19 +1,26 @@
 (ns car-cpu-clj.interpreter.interpreter
-  (:require [car-data-clj.db :as db]
-            [car-data-clj.core :as data :refer [make-request]])
+  (:require [car-data-clj.db.postgresql :refer [uuid]]
+            [car-data-clj.core :as data :refer [make-request]]
+            [car-data-clj.config :refer [read-from-resource]])
   (:import (pt.iceman.carscreentools Dashboard)))
 
+(def car-id (atom (-> (read-from-resource "configuration.edn") :car :car-id)))
+
 (def car-pullup-resistor-value 975)
+
 (def voltage-level 10.05)
+
 (def pin-resolution 1023)
+
 (def step (/ 15 pin-resolution))
-(def trip-id (atom (db/uuid)))
+
+(def trip-id (atom (uuid)))
 
 (defn avg [ar] (/ (reduce + ar) (count ar)))
 
 (defn create-log [type msg]
   (make-request {:op_type "car_log_new"
-                 :id (db/uuid)
+                 :id (uuid)
                  :trip_id @trip-id
                  :msg msg
                  :log_level type}))

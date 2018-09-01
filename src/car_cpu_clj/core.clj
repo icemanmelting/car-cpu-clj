@@ -9,7 +9,9 @@
             [car-cpu-clj.interpreter.ignition-state-based-interpreter :refer [reset-trip-km ignition-state]]
             [car-cpu-clj.ignition-reader :refer [ignition]]
             [car-cpu-clj.speed-rpm-reader :as speed]
-            [car-data-clj.core :as data])
+            [car-cpu-clj.interpreter.interpreter :refer [car-id]]
+            [car-data-clj.core :as data]
+            [car-data-clj.db.postgresql :refer [uuid]])
   (import (java.net DatagramSocket
                     DatagramPacket
                     InetSocketAddress)
@@ -79,19 +81,18 @@
 (defn -startCPU
   "Method to be called from the JavaGUI to start listening for
   incoming communication from the car's MCU"
-  [dashboard id]
-  (if-let [car-settings (data/read-settings id)]
-    (let [trip-km (:trip_kilometers car-settings)
-          cnst-km (:constant_kilometers car-settings)]
-      (doto dashboard (.setDistance trip-km)
-                      (.setTotalDistance cnst-km))
-      (reset! speed/trip-length trip-km)
-      (receive-loop (make-socket 9887) dashboard)
-      (go-loop [absolute-km cnst-km
-                diesel-buffer []
-                temp-buffer []
-                settings-id id]
-        (let [record (<!! cpu-channel)
-              [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard record absolute-km diesel-buffer temp-buffer settings-id)]
-          (recur abs-km d-buffer t-buffer settings-id))))
+  [dashboard]
+  (let [{:keys [trip_kilometers constant_kilometers] :as car} (data/read-car @car-id)]
+    (if (and trip_kilometers constant_kilometers)
+      (do (doto dashboard (.setDistance trip_kilometers)
+                          (.setTotalDistance constant_kilometers))
+          (reset! speed/trip-length trip_kilometers)
+          (receive-loop (make-socket 9887) dashboard)
+          (go-loop [absolute-km constant_kilometers
+                    diesel-buffer []
+                    temp-buffer []
+                    settings-id @car-id]
+            (let [record (<!! cpu-channel)
+                  [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard record absolute-km diesel-buffer temp-buffer settings-id)]
+              (recur abs-km d-buffer t-buffer settings-id)))))
     (prn "Could not get car settings, is there something wrong with the connection?")))

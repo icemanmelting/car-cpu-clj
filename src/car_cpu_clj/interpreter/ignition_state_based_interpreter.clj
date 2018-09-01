@@ -1,6 +1,5 @@
 (ns car-cpu-clj.interpreter.ignition-state-based-interpreter
   (:require [car-data-clj.core :as data :refer [make-request]]
-            [car-data-clj.db :as db]
             [car-cpu-clj.temperature-reader :as temp]
             [car-cpu-clj.speed-rpm-reader :as speed]
             [car-cpu-clj.fuel-reader :as diesel]

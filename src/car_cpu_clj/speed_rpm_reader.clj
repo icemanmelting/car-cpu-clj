@@ -1,5 +1,5 @@
 (ns car-cpu-clj.speed-rpm-reader
-  (:require [car-data-clj.db :as db]
+  (:require [car-data-clj.db.postgresql :refer [uuid]]
             [car-data-clj.core :refer [make-request]]
             [car-ai-clj.core :as ai])
   (:import (pt.iceman.carscreentools Dashboard)))
@@ -37,7 +37,7 @@
 
 (defn create-speed-data [speed rpm trip-id]
   (make-request {:op_type "car_speed_new"
-                 :id (db/uuid)
+                 :id (uuid)
                  :trip_id trip-id
                  :speed speed
                  :rpm rpm
