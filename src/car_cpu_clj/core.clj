@@ -10,6 +10,7 @@
             [car-cpu-clj.ignition-reader :refer [ignition]]
             [car-cpu-clj.speed-rpm-reader :as speed]
             [car-cpu-clj.interpreter.interpreter :refer [car-id]]
+            [car-data-clj.rest.car-data-server :refer [start-server]]
             [car-data-clj.core :as data]
             [car-data-clj.db.postgresql :refer [uuid]])
   (import (java.net DatagramSocket
@@ -84,15 +85,17 @@
   [dashboard]
   (let [{:keys [trip_kilometers constant_kilometers] :as car} (data/read-car @car-id)]
     (if (and trip_kilometers constant_kilometers)
-      (do (doto dashboard (.setDistance trip_kilometers)
-                          (.setTotalDistance constant_kilometers))
-          (reset! speed/trip-length trip_kilometers)
-          (receive-loop (make-socket 9887) dashboard)
-          (go-loop [absolute-km constant_kilometers
-                    diesel-buffer []
-                    temp-buffer []
-                    settings-id @car-id]
-            (let [record (<!! cpu-channel)
-                  [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard record absolute-km diesel-buffer temp-buffer settings-id)]
-              (recur abs-km d-buffer t-buffer settings-id))))
+      (do
+        (start-server)
+        (doto dashboard (.setDistance trip_kilometers)
+                        (.setTotalDistance constant_kilometers))
+        (reset! speed/trip-length trip_kilometers)
+        (receive-loop (make-socket 9887) dashboard)
+        (go-loop [absolute-km constant_kilometers
+                  diesel-buffer []
+                  temp-buffer []
+                  settings-id @car-id]
+          (let [record (<!! cpu-channel)
+                [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard record absolute-km diesel-buffer temp-buffer settings-id)]
+            (recur abs-km d-buffer t-buffer settings-id))))
       (prn "Could not get car settings, is there something wrong with the connection?"))))
