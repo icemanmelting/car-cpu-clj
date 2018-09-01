@@ -94,5 +94,5 @@
                     settings-id @car-id]
             (let [record (<!! cpu-channel)
                   [abs-km d-buffer t-buffer settings-id] (interpret-command dashboard record absolute-km diesel-buffer temp-buffer settings-id)]
-              (recur abs-km d-buffer t-buffer settings-id)))))
-    (prn "Could not get car settings, is there something wrong with the connection?")))
+              (recur abs-km d-buffer t-buffer settings-id))))
+      (prn "Could not get car settings, is there something wrong with the connection?"))))
