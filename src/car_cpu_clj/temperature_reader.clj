@@ -1,5 +1,5 @@
 (ns car-cpu-clj.temperature-reader
-  (:require [car-data-clj.db :as db]
+  (:require [car-data-clj.db.postgresql :refer [uuid]]
             [car-data-clj.core :refer [make-request]]
             [car-cpu-clj.interpreter.interpreter :refer [step car-pullup-resistor-value voltage-level create-log avg]])
   (:import (pt.iceman.carscreentools Dashboard)))
@@ -37,6 +37,6 @@
 
 (defn create-temperature-data [temp trip-id]
   (make-request {:op_type "car_temp_new"
-                 :id (db/uuid)
+                 :id (uuid)
                  :trip_id trip-id
                  :val temp}))

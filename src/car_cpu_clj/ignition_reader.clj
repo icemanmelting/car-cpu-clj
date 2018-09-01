@@ -2,19 +2,20 @@
   (:require [car-cpu-clj.speed-rpm-reader :as speed]
             [car-cpu-clj.temperature-reader :as temp]
             [car-data-clj.core :refer [make-request]]
-            [car-cpu-clj.interpreter.interpreter :refer [trip-id create-log reset-dashboard]]
-            [overtone.at-at :refer [at every mk-pool now stop-and-reset-pool!]]
-            [car-data-clj.db :as db])
+            [car-data-clj.db.postgresql :refer [uuid]]
+            [car-cpu-clj.interpreter.interpreter :refer [trip-id car-id create-log reset-dashboard]]
+            [overtone.at-at :refer [at every mk-pool now stop-and-reset-pool!]])
   (:import (pt.iceman.carscreentools Dashboard)))
 
 (def ignition (atom false))
+
 (def my-pool (mk-pool))
 
 (defn reset-ignition-atom [val]
   (reset! ignition val))
 
 (defn- reset-atoms []
-  (reset! trip-id (db/uuid))
+  (reset! trip-id (uuid))
   (reset-ignition-atom true)
   (temp/reset-temp-atom 0)
   (speed/reset-speed-atoms))
@@ -23,6 +24,7 @@
   (reset-atoms)
   (make-request {:op_type "car_trip_new"
                  :id @trip-id
+                 :car_id @car-id
                  :starting_km (.getTotalDistance dashboard)})
   (every 200000 #(speed/create-speed-data (.getSpeed dashboard)
                                           (.getRpm dashboard)
@@ -31,7 +33,7 @@
   (every 200000 #(temp/create-temperature-data (.getTemp dashboard)
                                                @trip-id)
          my-pool)
-  (every 200000 #(make-request {:op_type "car_settings_up"
+  (every 200000 #(make-request {:op_type "car_up"
                                 :id settings-id
                                 :constant_km (.getTotalDistance dashboard)
                                 :trip_km (.getDistance dashboard)})
@@ -61,7 +63,7 @@
                           (create-log "INFO" "Could not read script to shutdown screen"))) my-pool)
   (reset-dashboard dashboard)
   (create-log "INFO" "Ignition turned off")
-  (make-request {:op_type "car_settings_up"
+  (make-request {:op_type "car_up"
                  :id settings-id
                  :constant_km abs-km
                  :trip_km @speed/trip-length})
