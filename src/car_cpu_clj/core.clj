@@ -3,7 +3,7 @@
     :name pt.iceman.CarCPU
     :state state
     :init init
-    :methods [#^{:static true} [startCPU [pt.iceman.carscreentools.Dashboard java.util.UUID] void]
+    :methods [#^{:static true} [startCPU [pt.iceman.carscreentools.Dashboard] void]
               #^{:static true} [resetDashTripKm [] boolean]])
   (:require [clojure.core.async :as a :refer [<! <!! chan go-loop >!! go >!]]
             [car-cpu-clj.interpreter.ignition-state-based-interpreter :refer [reset-trip-km ignition-state]]
